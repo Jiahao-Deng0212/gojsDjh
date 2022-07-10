@@ -5,6 +5,7 @@
 
 import { ChangeDetectorRef, Component, ViewChild, ViewEncapsulation } from '@angular/core';
 import * as go from 'gojs';
+import { GraphLinksModel, GraphObject } from 'gojs';
 import { DataSyncService, DiagramComponent, PaletteComponent } from 'gojs-angular';
 import produce from "immer";
 
@@ -23,7 +24,6 @@ export class AppComponent {
   // As of gojs-angular 2.0, immutability is expected and required of state for ease of change detection.
   // Whenever updating state, immutability must be preserved. It is recommended to use immer for this, a small package that makes working with immutable data easy.
   public state = {
-    // Diagram state props
     diagramNodeData: [
       { id: 'Alpha', text: "Alpha", color: 'lightblue', loc: "0 0" },
       { id: 'Beta', text: "Beta", color: 'orange', loc: "100 0" },
@@ -31,11 +31,11 @@ export class AppComponent {
       { id: 'Delta', text: "Delta", color: 'pink', loc: "100 100" }
     ],
     diagramLinkData: [
-        { key: -1, from: 'Alpha', to: 'Beta', fromPort: 'r', toPort: '1' },
-        { key: -2, from: 'Alpha', to: 'Gamma', fromPort: 'b', toPort: 't' },
-        { key: -3, from: 'Beta', to: 'Beta' },
-        { key: -4, from: 'Gamma', to: 'Delta', fromPort: 'r', toPort: 'l' },
-        { key: -5, from: 'Delta', to: 'Alpha', fromPort: 't', toPort: 'r' }
+      { key: -1, from: 'Alpha', to: 'Beta' },
+      { key: -2, from: 'Alpha', to: 'Gamma' },
+      { key: -3, from: 'Beta', to: 'Beta' },
+      { key: -4, from: 'Gamma', to: 'Delta' },
+      { key: -5, from: 'Delta', to: 'Alpha' }
     ],
     diagramModelData: { prop: 'value' },
     skipsDiagramUpdate: false,
@@ -43,12 +43,12 @@ export class AppComponent {
 
     // Palette state props
     paletteNodeData: [
-      { key: 'Epsilon', text: 'Epsilon', color: 'red' },
-      { key: 'Kappa', text: 'Kappa', color: 'purple' }
+      { id: 'Epsilon', text: 'Epsilon', color: 'red' },
+      { id: 'Kappa', text: 'Kappa', color: 'purple' }
     ],
     paletteModelData: { prop: 'val' }
   };
-  
+
   public diagramDivClassName: string = 'myDiagramDiv';
   public paletteDivClassName = 'myPaletteDiv';
 
@@ -58,20 +58,17 @@ export class AppComponent {
     const $ = go.GraphObject.make;
     const dia = $(go.Diagram, {
       'undoManager.isEnabled': true,
-      'clickCreatingTool.archetypeNodeData': { text: 'new node', color: 'lightblue' },
       model: $(go.GraphLinksModel,
         {
           nodeKeyProperty: 'id',
           linkToPortIdProperty: 'toPort',
           linkFromPortIdProperty: 'fromPort',
-          linkKeyProperty: 'key' // IMPORTANT! must be defined for merges and data sync when using GraphLinksModel
+          linkKeyProperty: 'key'
         }
       )
     });
 
-    dia.commandHandler.archetypeGroupData = { key: 'Group', isGroup: true };
-
-    const makePort = function(id: string, spot: go.Spot) {
+    const makePort = function (id: string, spot: go.Spot) {
       return $(go.Shape, 'Circle',
         {
           opacity: .5,
@@ -85,27 +82,26 @@ export class AppComponent {
     // define the Node template
     dia.nodeTemplate =
       $(go.Node, 'Spot',
-        {
-          contextMenu:
-            $('ContextMenu',
-              $('ContextMenuButton',
-                $(go.TextBlock, 'Group'),
-                { click: function(e, obj) { e.diagram.commandHandler.groupSelection(); } },
-                new go.Binding('visible', '', function(o) {
-                  return o.diagram.selection.count > 1;
-                }).ofObject())
-            )
-        },
+        // {
+        //   contextMenu:
+        //     $('ContextMenu',
+        //       $('ContextMenuButton',
+        //         $(go.TextBlock, 'Group'),
+        //         { click: function (e, obj) { e.diagram.commandHandler.groupSelection(); } },
+        //         new go.Binding('visible', '', function (o) {
+        //           return o.diagram.selection.count > 1;
+        //         }).ofObject())
+        //     ),
+        // },
         new go.Binding("location", "loc", go.Point.parse).makeTwoWay(go.Point.stringify),
         $(go.Panel, 'Auto',
           $(go.Shape, 'RoundedRectangle', { stroke: null },
             new go.Binding('fill', 'color', (c, panel) => {
-             
               return c;
             })
           ),
           $(go.TextBlock, { margin: 8, editable: true },
-            new go.Binding('text').makeTwoWay())
+            new go.Binding('text').makeTwoWay()),
         ),
         // Ports
         makePort('t', go.Spot.TopCenter),
@@ -114,13 +110,79 @@ export class AppComponent {
         makePort('b', go.Spot.BottomCenter)
       );
 
+    //---------------------------------------------------------模板-------------------------------------------------------
+    // TODO 添加链接模板
+    dia.linkTemplate =
+      $(go.Link,
+        $(go.Shape, {
+          strokeWidth: 10
+        }),
+        $(go.Shape, { toArrow: 'Standard', strokeWidth: 10 }),
+        $(go.Panel, 'Auto',
+          $(go.Shape, 'Ellipse',
+            { width: 30, height: 30, fill: 'whitesmoke', stroke: 'whitesmoke', name: 'addNodeLabel' },
+          ),
+          // TODO 替换成ui设计图
+          $(go.Shape, 'Ellipse',
+            { width: 20, height: 20, fill: 'green' }
+          ),
+          {
+            // *** 事件响应 ***
+            mouseDragEnter: (e, obj) => {
+              let shape = obj.findBindingPanel();
+              (shape.findObject('addNodeLabel') as any).fill = 'lightGray'
+            },
+            mouseDragLeave: (e, obj) => {
+              let shape = obj.findBindingPanel();
+              (shape.findObject('addNodeLabel') as any).fill = 'whitesmoke'
+            },
+            mouseDrop: (e, obj) => {
+              let that = this;
+              setTimeout(() => {
+                // 被插入点所在的路径信息
+                // TODO() 插入方法需要改进， 理由：视图数据改变，但是模型没有同步更改
+                let linkInfo = obj['bg']['jb'];
+                let copy_linkInfo = JSON.parse(JSON.stringify(linkInfo))
+                let fromNode = dia.model.findNodeDataForKey(linkInfo.from);
+                let toNode = dia.model.findNodeDataForKey(linkInfo.to);
+                dia.model.commit(function (m) {
+                  if ((m as GraphLinksModel).getToKeyForLinkData(linkInfo) === linkInfo.to) {
+                    (m as GraphLinksModel).setToKeyForLinkData(linkInfo, window['insertNode'].id)
+                  }
+                  (dia.model as any as go.GraphLinksModel).addLinkData({ from: linkInfo.to, to: copy_linkInfo.to });
+                })
+                // (dia.model as any as go.GraphLinksModel).addLinkData({ from: linkInfo.from, to: window['insertNode'].id });
+                // (dia.model as any as go.GraphLinksModel).addLinkData({ from: window['insertNode'].id, to: linkInfo.to });
+                // (dia.model as any as go.GraphLinksModel).removeLinkData(linkInfo);
+                // (dia.model as any as go.GraphLinksModel).mergeLinkDataArray(dia.model['linkDataArray']);
+
+                console.log('---------------');
+                // that['linkDataArray'] = dia.model['linkDataArray'];
+                console.log(that['nodeDataArray'], that['linkDataArray'], "this对象");
+                console.log(dia.model.nodeDataArray, dia.model['linkDataArray'], "dia对象");
+
+              }, 0);
+            }
+          }
+        )
+
+      )
+
     return dia;
   }
 
   // When the diagram model changes, update app data to reflect those changes. Be sure to use immer's "produce" function to preserve immutability
-  public diagramModelChange = function(changes: go.IncrementalData) {
+  public diagramModelChange = function (changes: go.IncrementalData) {
+    console.log(changes);
+
     if (!changes) return;
+    if (changes.insertedNodeKeys && changes.insertedNodeKeys.length > 0) {
+      window['insertNode'] = changes.modifiedNodeData && changes.modifiedNodeData.length > 0 ? changes.modifiedNodeData[0] : {};
+      // window['insertNode'].key = changes.insertedNodeKeys && changes.insertedNodeKeys.length > 0 ? changes.insertedNodeKeys[0] : {};
+    }
+
     const appComp = this;
+    // draf 代表 this.state?
     this.state = produce(this.state, draft => {
       // set skipsDiagramUpdate: true since GoJS already has this update
       // this way, we don't log an unneeded transaction in the Diagram's undoManager history
@@ -142,6 +204,7 @@ export class AppComponent {
     });
   };
 
+  //  -------------------------------------------------------palette------------------------------------------------------
   public initPalette(): go.Palette {
     const $ = go.GraphObject.make;
     const palette = $(go.Palette);
@@ -156,12 +219,17 @@ export class AppComponent {
           new go.Binding('fill', 'color')
         ),
         $(go.TextBlock, { margin: 8 },
-          new go.Binding('text', 'key'))
+          new go.Binding('text', 'id'))
       );
 
-    palette.model = $(go.GraphLinksModel);
+    palette.model = $(go.GraphLinksModel, {
+      nodeKeyProperty: 'id',
+      linkKeyProperty: 'key'
+    });
     return palette;
   }
+
+  // - -----------------------------------------------------------------------------------------------------------------
 
   constructor(private cdr: ChangeDetectorRef) { }
 
@@ -184,7 +252,7 @@ export class AppComponent {
 
     const appComp: AppComponent = this;
     // listener for inspector
-    this.myDiagramComponent.diagram.addDiagramListener('ChangedSelection', function(e) {
+    this.myDiagramComponent.diagram.addDiagramListener('ChangedSelection', function (e) {
       if (e.diagram.selection.count === 0) {
         appComp.selectedNodeData = null;
       }
@@ -223,6 +291,11 @@ export class AppComponent {
     });
   }
 
+  save() {
+    console.log(this.state);
+
+
+  }
 
 }
 
