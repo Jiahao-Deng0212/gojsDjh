@@ -84,7 +84,7 @@ export class AppComponent {
     }
 
     // 删除节点函数定义
-    function deletNode(e,obj){
+    function deletNode(e, obj) {
       const nodeKey = obj.part.data.id;
       let fromLink;
       let toLink;
@@ -99,12 +99,12 @@ export class AppComponent {
       })
       dia.model.commit(function (m) {
         if (toLink && toLink.length > 0 && fromLink && fromLink.length > 0) {
-          (dia.model as any as go.GraphLinksModel).addLinkData({from: toLink[0].from,to: fromLink[0].to})
+          (dia.model as any as go.GraphLinksModel).addLinkData({ from: toLink[0].from, to: fromLink[0].to })
         }
       })
-      } 
-       
-  
+    }
+
+
     // dia.layout = $(go.LayeredDigraphLayout, { columnSpacing: 10 });
 
     // define the Node template
@@ -116,7 +116,7 @@ export class AppComponent {
               $('ContextMenuButton',
                 { click: deletNode },
                 $(go.TextBlock, '删除'),
-                
+
                 // new go.Binding('visible', '', function (o) {
                 //   return o.diagram.selection.count > 1;
                 // }).ofObject()
@@ -125,7 +125,7 @@ export class AppComponent {
         },
         new go.Binding("location", "loc", go.Point.parse).makeTwoWay(go.Point.stringify),
         $(go.Panel, 'Auto',
-          $(go.Shape, 'RoundedRectangle', { stroke: null , name: 'addNodeBack'},
+          $(go.Shape, 'RoundedRectangle', { stroke: null, name: 'addNodeBack' },
             new go.Binding('fill', 'color', (c, panel) => {
               return c;
             })
@@ -133,36 +133,38 @@ export class AppComponent {
           $(go.TextBlock, { margin: 8, editable: true },
             new go.Binding('text').makeTwoWay()
           ),
-            {
-              mouseDragEnter: (e, obj) => {
-                // const deng = obj.findBindingPanel();
-                // (deng.findObject('addNodeBack') as any).fill = 'red'
-                // TODO 添加提示
-              },
-              mouseDrop: (e, obj) => {
-              
-            
-                setTimeout(() => {
-                  dia.model.commit(function (m) {
-                    var removeLink = (dia.model['linkDataArray'] && dia.model['linkDataArray'].length > 0) ? dia.model['linkDataArray'].filter(linkitem => {
-                      return linkitem.to === window['insertNode'].id
-                    }) : null;
-                    if (removeLink) {
-                    (dia.model as any as go.GraphLinksModel).removeLinkData(removeLink[0])
-                    }
-                  })
-                  dia.model.commit(function (m) {
-                    dia.model.commit(function (m) {
-                      
-                      (dia.model as any as go.GraphLinksModel).addLinkData({ from: obj.part.data.id, to: copy_winNode.id , fromPort: 'b1', toPort: 't' });
-                    })
-                  })
-                
-                }, 0);
-              }
+          {
+            mouseDragEnter: (e, obj) => {
+              // const deng = obj.findBindingPanel();
+              // (deng.findObject('addNodeBack') as any).fill = 'red'
+              // TODO 添加提示
             },
+            mouseDrop: (e, obj) => {
+
+
+              setTimeout(() => {
+                dia.model.commit(function (m) {
+                  var removeLink = (dia.model['linkDataArray'] && dia.model['linkDataArray'].length > 0) ? dia.model['linkDataArray'].filter(linkitem => {
+                    return linkitem.to === window['insertNode'].id
+                  }) : null;
+                  if (removeLink) {
+                    (dia.model as any as go.GraphLinksModel).removeLinkData(removeLink[0])
+                  }
+                })
+                dia.model.commit(function (m) {
+                  dia.model.commit(function (m) {
+                    var copy_winNode = window['insertNode']
+                    console.log(copy_winNode, "邓佳豪爱好");
+
+                    (dia.model as any as go.GraphLinksModel).addLinkData({ from: obj.part.data.id, to: copy_winNode.id, fromPort: 'b1', toPort: 't' });
+                  })
+                })
+
+              }, 0);
+            }
+          },
         ),
-      
+
         // Ports
         makePort('b0', go.Spot.BottomCenter),
         makePort('t', go.Spot.Top),
@@ -207,8 +209,8 @@ export class AppComponent {
             mouseDrop: (e, obj) => {
               let that = this;
               setTimeout(() => {
-                console.log(obj.part.data,"哈哈哈");
-                
+                console.log(obj.part.data, "哈哈哈");
+
                 // 被插入点所在的路径信息
                 // TODO() 插入方法需要改进， 理由：视图数据改变，但是模型没有同步更改
                 // TODO 此处使用了框架缩小属性名称（['bg']['jb']）(已解决)，不同版本之前缩小名称可能不同
@@ -243,13 +245,13 @@ export class AppComponent {
 
   // When the diagram model changes, update app data to reflect those changes. Be sure to use immer's "produce" function to preserve immutability
   public diagramModelChange = function (changes: go.IncrementalData) {
-    console.log(changes);
+    console.log(changes, "dengjiahaohahahh666666666 ");
 
     if (!changes) return;
     // if (changes.insertedNodeKeys && changes.insertedNodeKeys.length > 0) {
-      window['insertNode'] = changes.modifiedNodeData && changes.modifiedNodeData.length > 0 ? changes.modifiedNodeData[0] : {};
-      // window['insertNode'].key = changes.insertedNodeKeys && changes.insertedNodeKeys.length > 0 ? changes.insertedNodeKeys[0] : {};
-    // } 
+    window['insertNode'] = changes.modifiedNodeData && changes.modifiedNodeData.length > 0 ? changes.modifiedNodeData[0] : {};
+    // window['insertNode'].key = changes.insertedNodeKeys && changes.insertedNodeKeys.length > 0 ? changes.insertedNodeKeys[0] : {};
+    // }
 
     const appComp = this;
     // draf 代表 this.state?
