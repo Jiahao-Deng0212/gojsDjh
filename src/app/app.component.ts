@@ -28,14 +28,14 @@ export class AppComponent {
       { id: 'Alpha', text: "Alpha", color: 'lightblue', loc: "0 0" },
       { id: 'Beta', text: "Beta", color: 'orange', loc: "100 0" },
       { id: 'Gamma', text: "Gamma", color: 'lightgreen', loc: "0 100" },
-      { id: 'Delta', text: "Delta", color: 'pink', loc: "100 100" }
+      // { id: 'Delta', text: "Delta", color: 'pink', loc: "100 100" }
     ],
     diagramLinkData: [
-      { key: -1, from: 'Alpha', to: 'Beta' },
-      { key: -2, from: 'Alpha', to: 'Gamma' },
-      { key: -3, from: 'Beta', to: 'Beta' },
-      { key: -4, from: 'Gamma', to: 'Delta' },
-      { key: -5, from: 'Delta', to: 'Alpha' }
+      { key: -1, from: 'Alpha', to: 'Beta', fromPort: 'b1', toPort: 't' },
+      { key: -2, from: 'Alpha', to: 'Gamma', fromPort: 'b0', toPort: 't' },
+      // { key: -3, from: 'Beta', to: 'Beta' },
+      // { key: -4, from: 'Gamma', to: 'Delta' },
+      // { key: -5, from: 'Delta', to: 'Alpha' }
     ],
     diagramModelData: { prop: 'value' },
     skipsDiagramUpdate: false,
@@ -58,6 +58,10 @@ export class AppComponent {
     const $ = go.GraphObject.make;
     const dia = $(go.Diagram, {
       'undoManager.isEnabled': true,
+      // initialDocumentSpot: go.Spot.Top,
+      // initialViewportSpot: go.Spot.Top,
+      // contentAlignment: go.Spot.Center,
+      // autoScale: go.Diagram.Uniform,
       model: $(go.GraphLinksModel,
         {
           nodeKeyProperty: 'id',
@@ -79,41 +83,105 @@ export class AppComponent {
       );
     }
 
+    // 删除节点函数定义
+    function deletNode(e,obj){
+      const nodeKey = obj.part.data.id;
+      let fromLink;
+      let toLink;
+      dia.model.commit(function (m) {
+        fromLink = Object.assign(m['linkDataArray'].filter(element => {
+          return element.from === nodeKey;
+        }));
+        toLink = Object.assign(m['linkDataArray'].filter(element => {
+          return element.to === nodeKey;
+        }));
+        dia.commandHandler.deleteSelection();
+      })
+      dia.model.commit(function (m) {
+        if (toLink && toLink.length > 0 && fromLink && fromLink.length > 0) {
+          (dia.model as any as go.GraphLinksModel).addLinkData({from: toLink[0].from,to: fromLink[0].to})
+        }
+      })
+      } 
+       
+  
+    // dia.layout = $(go.LayeredDigraphLayout, { columnSpacing: 10 });
+
     // define the Node template
     dia.nodeTemplate =
       $(go.Node, 'Spot',
-        // {
-        //   contextMenu:
-        //     $('ContextMenu',
-        //       $('ContextMenuButton',
-        //         $(go.TextBlock, 'Group'),
-        //         { click: function (e, obj) { e.diagram.commandHandler.groupSelection(); } },
-        //         new go.Binding('visible', '', function (o) {
-        //           return o.diagram.selection.count > 1;
-        //         }).ofObject())
-        //     ),
-        // },
+        {
+          contextMenu:
+            $('ContextMenu',
+              $('ContextMenuButton',
+                { click: deletNode },
+                $(go.TextBlock, '删除'),
+                
+                // new go.Binding('visible', '', function (o) {
+                //   return o.diagram.selection.count > 1;
+                // }).ofObject()
+              )
+            ),
+        },
         new go.Binding("location", "loc", go.Point.parse).makeTwoWay(go.Point.stringify),
         $(go.Panel, 'Auto',
-          $(go.Shape, 'RoundedRectangle', { stroke: null },
+          $(go.Shape, 'RoundedRectangle', { stroke: null , name: 'addNodeBack'},
             new go.Binding('fill', 'color', (c, panel) => {
               return c;
             })
           ),
           $(go.TextBlock, { margin: 8, editable: true },
-            new go.Binding('text').makeTwoWay()),
+            new go.Binding('text').makeTwoWay()
+          ),
+            {
+              mouseDragEnter: (e, obj) => {
+                // const deng = obj.findBindingPanel();
+                // (deng.findObject('addNodeBack') as any).fill = 'red'
+                // TODO 添加提示
+              },
+              mouseDrop: (e, obj) => {
+              
+            
+                setTimeout(() => {
+                  dia.model.commit(function (m) {
+                    var removeLink = (dia.model['linkDataArray'] && dia.model['linkDataArray'].length > 0) ? dia.model['linkDataArray'].filter(linkitem => {
+                      return linkitem.to === window['insertNode'].id
+                    }) : null;
+                    if (removeLink) {
+                    (dia.model as any as go.GraphLinksModel).removeLinkData(removeLink[0])
+                    }
+                  })
+                  dia.model.commit(function (m) {
+                    dia.model.commit(function (m) {
+                      
+                      (dia.model as any as go.GraphLinksModel).addLinkData({ from: obj.part.data.id, to: copy_winNode.id , fromPort: 'b1', toPort: 't' });
+                    })
+                  })
+                
+                }, 0);
+              }
+            },
         ),
+      
         // Ports
-        makePort('t', go.Spot.TopCenter),
-        makePort('l', go.Spot.Left),
-        makePort('r', go.Spot.Right),
-        makePort('b', go.Spot.BottomCenter)
+        makePort('b0', go.Spot.BottomCenter),
+        makePort('t', go.Spot.Top),
+        // makePort('b1', new go.Spot(0.75,1))
+        makePort('b1', go.Spot.RightCenter)
       );
 
     //---------------------------------------------------------模板-------------------------------------------------------
     // TODO 添加链接模板
     dia.linkTemplate =
       $(go.Link,
+        {
+          routing: go.Link.Orthogonal,
+          corner: 10,
+          // toShortLength: 6,
+          // fromShortLength: 3,
+          // toEndSegmentLength: 50,
+          // fromEndSegmentLength: 50,
+        },
         $(go.Shape, {
           strokeWidth: 10
         }),
@@ -139,9 +207,13 @@ export class AppComponent {
             mouseDrop: (e, obj) => {
               let that = this;
               setTimeout(() => {
+                console.log(obj.part.data,"哈哈哈");
+                
                 // 被插入点所在的路径信息
                 // TODO() 插入方法需要改进， 理由：视图数据改变，但是模型没有同步更改
-                let linkInfo = obj['bg']['jb'];
+                // TODO 此处使用了框架缩小属性名称（['bg']['jb']）(已解决)，不同版本之前缩小名称可能不同
+                // let linkInfo = obj['bg']['jb'];
+                let linkInfo = obj.part.data;
                 let copy_linkInfo = JSON.parse(JSON.stringify(linkInfo))
                 let fromNode = dia.model.findNodeDataForKey(linkInfo.from);
                 let toNode = dia.model.findNodeDataForKey(linkInfo.to);
@@ -156,10 +228,8 @@ export class AppComponent {
                 // (dia.model as any as go.GraphLinksModel).removeLinkData(linkInfo);
                 // (dia.model as any as go.GraphLinksModel).mergeLinkDataArray(dia.model['linkDataArray']);
 
-                console.log('---------------');
                 // that['linkDataArray'] = dia.model['linkDataArray'];
-                console.log(that['nodeDataArray'], that['linkDataArray'], "this对象");
-                console.log(dia.model.nodeDataArray, dia.model['linkDataArray'], "dia对象");
+                window['insertNode'] = null;
 
               }, 0);
             }
@@ -176,10 +246,10 @@ export class AppComponent {
     console.log(changes);
 
     if (!changes) return;
-    if (changes.insertedNodeKeys && changes.insertedNodeKeys.length > 0) {
+    // if (changes.insertedNodeKeys && changes.insertedNodeKeys.length > 0) {
       window['insertNode'] = changes.modifiedNodeData && changes.modifiedNodeData.length > 0 ? changes.modifiedNodeData[0] : {};
       // window['insertNode'].key = changes.insertedNodeKeys && changes.insertedNodeKeys.length > 0 ? changes.insertedNodeKeys[0] : {};
-    }
+    // } 
 
     const appComp = this;
     // draf 代表 this.state?
